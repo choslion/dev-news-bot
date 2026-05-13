@@ -91,7 +91,7 @@ def summarize_with_claude(articles: dict) -> str:
 각 카테고리 제목 아래 뉴스 내용과 링크를 작성."""
 
     response = anthropic.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5",
         max_tokens=2500,
         messages=[{"role": "user", "content": prompt}]
     )
