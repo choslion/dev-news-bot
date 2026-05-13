@@ -1,0 +1,30 @@
+name: 📰 Daily Dev News Bot
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 매일 UTC 00:00 = KST 09:00
+  workflow_dispatch:        # 수동 실행 버튼도 활성화
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 🐍 Python 3.11 세팅
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 🚀 뉴스 봇 실행
+        env:
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY:       ${{ secrets.NOTION_API_KEY }}
+          NOTION_NEWS_PAGE_ID:  ${{ secrets.NOTION_NEWS_PAGE_ID }}
+        run: python main.py
