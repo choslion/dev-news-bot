@@ -138,58 +138,86 @@ def post_to_notion(content: str, category_name: str):
 
     divider = {"object": "block", "type": "divider", "divider": {}}
 
+    def parse_rich_text(text: str) -> list:
+        """**bold** 및 링크를 rich_text 배열로 변환"""
+        rich = []
+        # **bold** 와 URL을 함께 처리
+        pattern = re.compile(r'\*\*(.+?)\*\*|https?://\S+')
+        last = 0
+        for m in pattern.finditer(text):
+            if m.start() > last:
+                rich.append({"type": "text", "text": {"content": text[last:m.start()]}})
+            if m.group(0).startswith("**"):
+                rich.append({"type": "text", "text": {"content": m.group(1)}, "annotations": {"bold": True}})
+            else:
+                url = m.group(0).rstrip(".,)")
+                rich.append({"type": "text", "text": {"content": url, "link": {"url": url}}})
+            last = m.end()
+        if last < len(text):
+            rich.append({"type": "text", "text": {"content": text[last:]}})
+        return rich or [{"type": "text", "text": {"content": text}}]
+
     # 본문을 줄 단위로 Notion 블록 변환
     body_blocks = []
+    first_heading = True
     for line in content.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
         if stripped.startswith("## "):
-            body_blocks.append({
-                "object": "block",
-                "type": "heading_2",
-                "heading_2": {
-                    "rich_text": [{"type": "text", "text": {"content": stripped[3:]}}]
-                },
-            })
+            text = stripped[3:]
+            # 첫 번째 ## 는 heading_1, 이후는 구분선 + heading_2
+            if first_heading:
+                body_blocks.append({
+                    "object": "block",
+                    "type": "heading_1",
+                    "heading_1": {"rich_text": [{"type": "text", "text": {"content": text}}]},
+                })
+                first_heading = False
+            else:
+                body_blocks.append(divider)
+                body_blocks.append({
+                    "object": "block",
+                    "type": "heading_2",
+                    "heading_2": {"rich_text": [{"type": "text", "text": {"content": text}}]},
+                })
         elif stripped.startswith("### "):
             body_blocks.append({
                 "object": "block",
                 "type": "heading_3",
-                "heading_3": {
-                    "rich_text": [{"type": "text", "text": {"content": stripped[4:]}}]
-                },
+                "heading_3": {"rich_text": [{"type": "text", "text": {"content": stripped[4:]}}]},
             })
         elif stripped.startswith("- ") or stripped.startswith("* "):
             body_blocks.append({
                 "object": "block",
                 "type": "bulleted_list_item",
-                "bulleted_list_item": {
-                    "rich_text": [{"type": "text", "text": {"content": stripped[2:]}}]
-                },
+                "bulleted_list_item": {"rich_text": parse_rich_text(stripped[2:])},
+            })
+        elif stripped.startswith("> "):
+            # 인용 블록
+            body_blocks.append({
+                "object": "block",
+                "type": "quote",
+                "quote": {"rich_text": parse_rich_text(stripped[2:])},
             })
         else:
-            # 링크 포함 여부 감지해서 링크 텍스트 처리
-            url_match = re.search(r'https?://\S+', stripped)
-            if url_match:
-                url = url_match.group()
-                before = stripped[:url_match.start()].rstrip()
-                rich = []
-                if before:
-                    rich.append({"type": "text", "text": {"content": before + " "}})
-                rich.append({"type": "text", "text": {"content": url, "link": {"url": url}}})
+            # 의견 섹션 키워드 감지 → 콜아웃
+            opinion_keywords = ("한 줄 의견", "개인 의견", "전망", "마치며", "생각해보면")
+            if any(kw in stripped for kw in opinion_keywords):
                 body_blocks.append({
                     "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {"rich_text": rich},
+                    "type": "callout",
+                    "callout": {
+                        "icon": {"type": "emoji", "emoji": "💬"},
+                        "rich_text": parse_rich_text(stripped),
+                        "color": "blue_background",
+                    },
                 })
             else:
                 body_blocks.append({
                     "object": "block",
                     "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{"type": "text", "text": {"content": stripped}}]
-                    },
+                    "paragraph": {"rich_text": parse_rich_text(stripped)},
                 })
 
     children = [header_block, divider, *body_blocks]
