@@ -164,7 +164,14 @@ def post_to_notion(content: str, category_name: str):
         stripped = line.strip()
         if not stripped:
             continue
-        if stripped.startswith("## "):
+        if stripped.startswith("# ") and not stripped.startswith("## "):
+            body_blocks.append({
+                "object": "block",
+                "type": "heading_1",
+                "heading_1": {"rich_text": [{"type": "text", "text": {"content": stripped[2:]}}]},
+            })
+            first_heading = False
+        elif stripped.startswith("## "):
             text = stripped[3:]
             # 첫 번째 ## 는 heading_1, 이후는 구분선 + heading_2
             if first_heading:
