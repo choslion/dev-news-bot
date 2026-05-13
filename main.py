@@ -70,21 +70,21 @@ def summarize_with_claude(articles: dict) -> str:
         for item in items:
             articles_text += f"- 제목: {item['title']}\n  링크: {item['link']}\n  내용: {item['summary']}\n\n"
 
-    prompt = f"""당신은 개발자를 위한 기술 뉴스 큐레이터입니다.
-아래 기사들을 읽고, 개발자에게 유용한 인사이트를 카테고리별로 한국어로 요약해주세요.
+    prompt = f"""아래 기사들을 읽고, 개발자 독자에게 오늘 눈에 띈 뉴스를 카테고리별로 한국어로 정리해줘.
 
 규칙:
-- 각 카테고리마다 핵심 뉴스 2~3개를 선택
-- 각 뉴스는 2~3문장으로 간결하게 요약
-- 왜 중요한지 한 줄 코멘트 추가
-- 말투는 "~입니다", "~합니다" 체로 작성
+- AI가 생성한 티 나면 안 됨. 개발 좀 하는 사람이 직접 읽고 골라서 쓴 것처럼 자연스럽게
+- 각 카테고리마다 2~3개 선택
+- 각 뉴스는 2~3문장. "이게 왜 흥미롭냐면..." 식의 개인 의견 한 줄 포함
+- 말투는 "~다", "~네", "~함" 같은 블로그/노트 스타일 (존댓말 X)
+- AI, 요약, 자동화 같은 단어 쓰지 말 것
 - 원문 링크는 반드시 포함
 
 기사 목록:
 {articles_text}
 
 출력 형식:
-각 카테고리 제목 아래 뉴스 요약과 링크를 작성해주세요."""
+각 카테고리 제목 아래 뉴스 내용과 링크를 작성."""
 
     response = anthropic.messages.create(
         model="claude-sonnet-4-20250514",
@@ -105,18 +105,6 @@ def post_to_notion(summary: str, articles: dict):
 
     # Notion 블록 구성
     children = [
-        # 콜아웃: 요약 소개
-        {
-            "object": "block",
-            "type": "callout",
-            "callout": {
-                "icon": {"type": "emoji", "emoji": "🤖"},
-                "rich_text": [{"type": "text", "text": {
-                    "content": "Claude AI가 오늘의 개발 뉴스를 요약했습니다."
-                }}],
-                "color": "blue_background"
-            }
-        },
         # 구분선
         {"object": "block", "type": "divider", "divider": {}},
         # 요약 본문 (단락으로 분리)
