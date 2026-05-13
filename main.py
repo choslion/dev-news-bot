@@ -70,13 +70,64 @@ def fetch_articles(category: dict) -> list[dict]:
     return articles
 
 
-def write_deep_dive(articles: list[dict], category_name: str) -> str:
+def select_topic(articles: list[dict], category_name: str) -> dict:
+    """기사 목록에서 가장 사람들이 관심 가질 주제 하나를 선정"""
     articles_text = "\n".join(
-        f"- 제목: {a['title']}\n  링크: {a['link']}\n  내용: {a['summary']}\n"
-        for a in articles
+        f"[{i+1}] 제목: {a['title']}\n    링크: {a['link']}\n    내용: {a['summary']}\n"
+        for i, a in enumerate(articles)
     )
 
-    prompt = f"""아래는 오늘 '{category_name}' 분야에서 수집한 기사 목록이야.
+    prompt = f"""아래는 '{category_name}' 분야 기사 목록이야.
+개발자 커뮤니티에서 실제로 반응이 올 만한 글 하나를 골라줘.
+
+선정 기준 (중요한 순서):
+1. 개발자가 읽고 나서 동료한테 바로 공유하고 싶어지는 것
+2. 몰랐는데 알고 나면 실무가 달라지는 것
+3. "어? 이게 이렇게 돼?" 하는 의외성이 있는 것
+4. 지금 업계에서 실제로 고민하고 있는 문제를 건드리는 것
+
+이런 건 제외:
+- 버전 릴리즈 공지 (기능 나열만 하는 것)
+- 마케팅 냄새 나는 글
+- 너무 기초적이거나 뻔한 내용
+- 특정 회사 홍보에 가까운 글
+
+기사 목록:
+{articles_text}
+
+응답 형식 (이것만):
+선택: [번호]
+이유: [왜 이게 사람들 관심을 끌 것 같은지 한 줄로]"""
+
+    response = anthropic.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=200,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    result = response.content[0].text.strip()
+    print(f"📌 주제 선정 결과:\n{result}")
+
+    # 선택된 번호 파싱
+    match = re.search(r"선택:\s*\[?(\d+)\]?", result)
+    if match:
+        idx = int(match.group(1)) - 1
+        if 0 <= idx < len(articles):
+            return articles[idx]
+
+    # 파싱 실패 시 첫 번째 기사
+    return articles[0]
+
+
+def write_deep_dive(articles: list[dict], category_name: str) -> str:
+    selected = select_topic(articles, category_name)
+    print(f"✅ 선정된 주제: {selected['title']}")
+
+    articles_text = (
+        f"- 제목: {selected['title']}\n  링크: {selected['link']}\n  내용: {selected['summary']}\n"
+    )
+
+    prompt = f"""아래는 오늘 '{category_name}' 분야에서 선정한 기사야.
 
 이 중에서 개발자에게 가장 흥미롭고 실무와 연결되는 주제 하나를 골라서, 아래 스타일로 한국어 글을 써줘.
 
