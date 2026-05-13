@@ -147,7 +147,7 @@ def post_to_notion(content: str, category_name: str):
     weekday   = weekdays[datetime.now().weekday()]
 
     topic_title = extract_title(content)
-    page_title  = f"{today_str} ({weekday}) — {topic_title}"
+    page_title  = topic_title
 
     # 카테고리 태그 블록
     header_block = {
