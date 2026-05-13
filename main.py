@@ -78,24 +78,24 @@ def write_deep_dive(articles: list[dict], category_name: str) -> str:
 
     prompt = f"""아래는 오늘 '{category_name}' 분야에서 수집한 기사 목록이야.
 
-이 중에서 개발자에게 가장 흥미롭고 실무와 연결되는 주제 하나를 골라서, 아래 구성으로 한국어 글을 작성해줘.
+이 중에서 개발자에게 가장 흥미롭고 실무와 연결되는 주제 하나를 골라서, 아래 구성으로 한국어 글을 써줘.
 
 [구성]
-1. 오늘의 주제 한 줄 소개 (제목 느낌으로)
-2. 개념 설명 — 이게 뭔지, 어떤 맥락에서 나온 건지
-3. 왜 지금 주목받는가 — 업계 흐름이나 최근 변화와 연결
-4. 실무에 어떻게 적용할 수 있나 — 구체적으로
-5. 한 줄 의견 — 개인적인 시각이나 전망
+1. ## 로 시작하는 주제 제목 (한 줄, 핵심만)
+2. ## 이게 뭔데 — 개념 설명. 처음 듣는 사람도 이해할 수 있게, 근데 너무 쉽게 설명하려 애쓰지는 말고
+3. ## 왜 지금인가 — 업계 흐름이나 최근 변화와 연결. 단순 나열 말고 흐름을 읽어서
+4. ## 실무에서 쓰려면 — 구체적인 적용 방법. 예시 코드가 있으면 코드블록으로
+5. ## 한 줄 의견 — 짧고 솔직하게
 
 [말투]
-- "~입니다", "~이다", "~한다" 혼용. 읽기 자연스러울 정도로만 정중하게.
-- 딱딱하지 않게, 개발 블로그 글 느낌
-- 원문 링크 반드시 포함
+- 개발 블로그 글처럼. "~다", "~이다", "~한다" 위주로
+- 너무 격식 차리지 말고, 읽다 보면 자연스럽게 이해되는 흐름
+- 문장이 너무 길어지면 끊어서 써줘
 
 [주의]
-- AI가 쓴 티 나지 않게
-- "요약", "자동화", "AI가 작성" 같은 표현 금지
-- 각 섹션에 마크다운 제목(##) 사용
+- AI가 쓴 티 나면 안 됨. "살펴보겠습니다", "알아보도록 하겠습니다" 같은 표현 절대 금지
+- 원문 링크 반드시 포함
+- 코드 예시는 반드시 ```언어 코드블록으로 감싸기
 
 기사 목록:
 {articles_text}"""
@@ -157,13 +157,54 @@ def post_to_notion(content: str, category_name: str):
             rich.append({"type": "text", "text": {"content": text[last:]}})
         return rich or [{"type": "text", "text": {"content": text}}]
 
+    notion_lang_map = {
+        "bash": "bash", "sh": "bash", "shell": "bash",
+        "python": "python", "py": "python",
+        "javascript": "javascript", "js": "javascript",
+        "typescript": "typescript", "ts": "typescript",
+        "yaml": "yaml", "yml": "yaml",
+        "json": "json", "sql": "sql",
+        "go": "go", "rust": "rust", "java": "java",
+        "css": "css", "html": "html", "xml": "xml",
+    }
+
     # 본문을 줄 단위로 Notion 블록 변환
     body_blocks = []
     first_heading = True
+    in_code_block = False
+    code_lang = "plain text"
+    code_lines: list[str] = []
+
     for line in content.splitlines():
         stripped = line.strip()
+
+        # 코드 블록 시작/종료 감지
+        if stripped.startswith("```"):
+            if not in_code_block:
+                in_code_block = True
+                lang_key = stripped[3:].strip().lower()
+                code_lang = notion_lang_map.get(lang_key, "plain text")
+                code_lines = []
+            else:
+                in_code_block = False
+                body_blocks.append({
+                    "object": "block",
+                    "type": "code",
+                    "code": {
+                        "rich_text": [{"type": "text", "text": {"content": "\n".join(code_lines)}}],
+                        "language": code_lang,
+                    },
+                })
+                code_lines = []
+            continue
+
+        if in_code_block:
+            code_lines.append(line)
+            continue
+
         if not stripped:
             continue
+
         if stripped.startswith("# ") and not stripped.startswith("## "):
             body_blocks.append({
                 "object": "block",
