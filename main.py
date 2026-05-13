@@ -70,7 +70,7 @@ def summarize_with_claude(articles: dict) -> str:
         for item in items:
             articles_text += f"- 제목: {item['title']}\n  링크: {item['link']}\n  내용: {item['summary']}\n\n"
 
-    prompt = f"""아래 기사들을 읽고, 개발자 독자에게 오늘 눈에 띈 뉴스를 카테고리별로 한국어로 정리해줘.
+    prompt = f"""아래 기사들을 읽고, 개발자 독자에게 오늘 눈에 띈 뉴스를 한국어로 정리해줘.
 
 규칙:
 - AI가 생성한 티 나면 안 됨. 개발 좀 하는 사람이 직접 읽고 골라서 쓴 것처럼 자연스럽게
@@ -83,15 +83,32 @@ def summarize_with_claude(articles: dict) -> str:
 기사 목록:
 {articles_text}
 
-출력 형식:
+출력 형식 (반드시 이 구조로):
+[오늘의 요약]
+오늘 전체 뉴스를 2~3문장으로 압축. 독자가 제목만 보고도 오늘 뭐가 있었는지 알 수 있게.
+[/오늘의 요약]
+
 각 카테고리 제목 아래 뉴스 내용과 링크를 작성."""
 
     response = anthropic.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=2000,
+        max_tokens=2500,
         messages=[{"role": "user", "content": prompt}]
     )
     return response.content[0].text
+
+
+def _parse_today_summary(text: str) -> tuple[str, str]:
+    """[오늘의 요약]...[/오늘의 요약] 태그를 파싱해 (요약, 본문) 반환"""
+    import re
+    match = re.search(r"\[오늘의 요약\](.*?)\[/오늘의 요약\]", text, re.DOTALL)
+    if match:
+        daily_summary = match.group(1).strip()
+        body = text[:match.start()] + text[match.end():]
+    else:
+        daily_summary = ""
+        body = text
+    return daily_summary, body.strip()
 
 
 def post_to_notion(summary: str, articles: dict):
@@ -100,11 +117,34 @@ def post_to_notion(summary: str, articles: dict):
     weekdays  = ["월", "화", "수", "목", "금", "토", "일"]
     weekday   = weekdays[datetime.now().weekday()]
 
+    daily_summary, body = _parse_today_summary(summary)
+
     # 페이지 제목
     title = f"📰 {today_str} ({weekday}) 개발 뉴스"
 
     # Notion 블록 구성
+    summary_blocks = []
+    if daily_summary:
+        summary_blocks = [
+            {
+                "object": "block",
+                "type": "callout",
+                "callout": {
+                    "icon": {"type": "emoji", "emoji": "📌"},
+                    "rich_text": [{"type": "text", "text": {"content": "오늘의 요약"}}],
+                    "color": "gray_background"
+                }
+            },
+            *[
+                {"object": "block", "type": "quote", "quote": {
+                    "rich_text": [{"type": "text", "text": {"content": line}}]
+                }}
+                for line in daily_summary.split("\n") if line.strip()
+            ],
+        ]
+
     children = [
+        *summary_blocks,
         # 구분선
         {"object": "block", "type": "divider", "divider": {}},
         # 요약 본문 (단락으로 분리)
@@ -112,7 +152,7 @@ def post_to_notion(summary: str, articles: dict):
             {"object": "block", "type": "paragraph", "paragraph": {
                 "rich_text": [{"type": "text", "text": {"content": line}}]
             }}
-            for line in summary.split("\n") if line.strip()
+            for line in body.split("\n") if line.strip()
         ],
         # 구분선
         {"object": "block", "type": "divider", "divider": {}},
