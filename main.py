@@ -166,18 +166,28 @@ def post_to_notion(content: str, category_name: str):
     divider = {"object": "block", "type": "divider", "divider": {}}
 
     def parse_rich_text(text: str) -> list:
-        """**bold** 및 링크를 rich_text 배열로 변환"""
+        """**bold**, [텍스트](url), bare URL을 rich_text 배열로 변환"""
         rich = []
-        # **bold** 와 URL을 함께 처리
-        pattern = re.compile(r'\*\*(.+?)\*\*|https?://\S+')
+        # 우선순위: 마크다운 링크 > bold > bare URL
+        # bare URL은 RFC 3986 허용 문자만 (한국어·괄호 등 제외)
+        pattern = re.compile(
+            r'\[([^\]]+)\]\((https?://[^\)]+)\)'   # [텍스트](url)
+            r'|\*\*(.+?)\*\*'                       # **bold**
+            r'|(https?://[a-zA-Z0-9\-._~:/?#\[\]@!$&\'*+,;=%]+)'  # bare URL
+        )
         last = 0
         for m in pattern.finditer(text):
             if m.start() > last:
                 rich.append({"type": "text", "text": {"content": text[last:m.start()]}})
-            if m.group(0).startswith("**"):
-                rich.append({"type": "text", "text": {"content": m.group(1)}, "annotations": {"bold": True}})
+            if m.group(1) is not None:
+                # [텍스트](url)
+                rich.append({"type": "text", "text": {"content": m.group(1), "link": {"url": m.group(2)}}})
+            elif m.group(3) is not None:
+                # **bold**
+                rich.append({"type": "text", "text": {"content": m.group(3)}, "annotations": {"bold": True}})
             else:
-                url = m.group(0).rstrip(".,)")
+                # bare URL
+                url = m.group(4).rstrip(".,")
                 rich.append({"type": "text", "text": {"content": url, "link": {"url": url}}})
             last = m.end()
         if last < len(text):
