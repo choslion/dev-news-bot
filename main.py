@@ -47,6 +47,19 @@ CATEGORIES = [
 ]
 
 MAX_ITEMS_PER_FEED = 5
+POSTED_URLS_FILE = "posted_urls.txt"
+
+
+def load_posted_urls() -> set:
+    if not os.path.exists(POSTED_URLS_FILE):
+        return set()
+    with open(POSTED_URLS_FILE, "r", encoding="utf-8") as f:
+        return {line.strip() for line in f if line.strip()}
+
+
+def save_posted_url(url: str):
+    with open(POSTED_URLS_FILE, "a", encoding="utf-8") as f:
+        f.write(url + "\n")
 
 
 def get_todays_category() -> dict:
@@ -54,15 +67,19 @@ def get_todays_category() -> dict:
     return CATEGORIES[day_index]
 
 
-def fetch_articles(category: dict) -> list[dict]:
+def fetch_articles(category: dict, posted_urls: set) -> list[dict]:
     articles = []
     for url in category["feeds"]:
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:MAX_ITEMS_PER_FEED]:
+                link = entry.get("link", "")
+                if link in posted_urls:
+                    print(f"[스킵] 이미 게시된 기사: {entry.get('title', '')}")
+                    continue
                 articles.append({
                     "title":   entry.get("title", "제목 없음"),
-                    "link":    entry.get("link", ""),
+                    "link":    link,
                     "summary": entry.get("summary", entry.get("description", ""))[:800],
                 })
         except Exception as e:
@@ -119,7 +136,7 @@ def select_topic(articles: list[dict], category_name: str) -> dict:
     return articles[0]
 
 
-def write_deep_dive(articles: list[dict], category_name: str) -> str:
+def write_deep_dive(articles: list[dict], category_name: str) -> tuple[str, str]:
     selected = select_topic(articles, category_name)
     print(f"✅ 선정된 주제: {selected['title']}")
 
@@ -183,7 +200,7 @@ def write_deep_dive(articles: list[dict], category_name: str) -> str:
         max_tokens=3000,
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.content[0].text
+    return response.content[0].text, selected["link"]
 
 
 def extract_title(content: str) -> str:
@@ -372,19 +389,28 @@ def post_to_notion(content: str, category_name: str):
 def main():
     print("🚀 뉴스 봇 시작...")
 
+    posted_urls = load_posted_urls()
+    print(f"📋 기존 게시 기사 수: {len(posted_urls)}개")
+
     category = get_todays_category()
     print(f"📂 오늘의 카테고리: {category['name']}")
 
     print("📡 RSS 피드 수집 중...")
-    articles = fetch_articles(category)
-    print(f"✅ {len(articles)}개 기사 수집 완료")
+    articles = fetch_articles(category, posted_urls)
+    print(f"✅ {len(articles)}개 새 기사 수집 완료")
+
+    if not articles:
+        print("⚠️ 새로운 기사가 없습니다. 종료합니다.")
+        return
 
     print("✍️ 심층 글 작성 중...")
-    content = write_deep_dive(articles, category["name"])
+    content, posted_url = write_deep_dive(articles, category["name"])
 
     print("📝 Notion 포스팅 중...")
     post_to_notion(content, category["name"])
 
+    save_posted_url(posted_url)
+    print(f"💾 게시 URL 저장: {posted_url}")
     print("🎉 완료!")
 
 
