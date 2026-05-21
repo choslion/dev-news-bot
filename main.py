@@ -191,14 +191,14 @@ def write_deep_dive(articles: list[dict], category_name: str) -> tuple[str, str]
 [주의]
 - 원문 링크는 자연스럽게 본문에 녹여서 포함
 - 코드는 반드시 ```언어 블록으로
-- 전체 분량: 800~1200자 내외
+- 전체 분량: 2500자 내외
 
 기사 목록:
 {articles_text}"""
 
     response = anthropic.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=3000,
+        max_tokens=5000,
         messages=[{"role": "user", "content": prompt}]
     )
     return response.content[0].text, selected["link"]
