@@ -63,7 +63,8 @@ def save_posted_url(url: str):
 
 
 def get_todays_category() -> dict:
-    day_index = datetime.now(timezone.utc).timetuple().tm_yday % len(CATEGORIES)
+    day_of_year = datetime.now(timezone.utc).timetuple().tm_yday
+    day_index = (day_of_year // 10) % len(CATEGORIES)
     return CATEGORIES[day_index]
 
 
