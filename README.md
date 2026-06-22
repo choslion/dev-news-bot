@@ -1,6 +1,6 @@
 # 📰 개발 뉴스 자동화 봇
 
-Nuxt/Vue, DevOps, 프론트엔드, AI 트렌드 뉴스를 매일 자동 수집 →  
+Nuxt/Vue, DevOps, 프론트엔드, AI 트렌드 뉴스를 10일마다 자동 수집 →  
 Claude가 한국어로 요약 → Notion에 자동 포스팅
 
 ---
@@ -52,4 +52,4 @@ GitHub → Actions 탭 → Daily Dev News Bot → Run workflow
 
 ## 🕐 실행 시간
 
-매일 오전 9시 (KST) 자동 실행
+10일마다 오전 9시 (KST) 자동 실행
